@@ -14,8 +14,7 @@
 #include <asm/arch/imx8mq_pins.h>
 #include <asm/arch/sys_proto.h>
 #include <power/pmic.h>
-#include <power/pfuze100_pmic.h>
-#include "../../freescale/common/pfuze.h"
+#include <power/bd71837.h>
 #include <asm/arch/clock.h>
 #include <asm/mach-imx/gpio.h>
 #include <asm/mach-imx/mxc_i2c.h>
@@ -47,29 +46,19 @@ struct i2c_pads_info i2c_pad_info1 = {
 	},
 };
 
-#define USDHC2_CD_GPIO	IMX_GPIO_NR(2, 12)
-#define USDHC1_PWR_GPIO IMX_GPIO_NR(2, 10)
-#define USDHC2_PWR_GPIO IMX_GPIO_NR(2, 19)
+#define USDHC1_PWR_GPIO IMX_GPIO_NR(2, 10)  // USDHC1_RESET_B(ALT0) GPIO2_IO10(ALT5)
+#define USDHC1_CD_GPIO	IMX_GPIO_NR(1, 6)   // GPIO1_IO06(ALT0) USDHC1_CD_B(ALT5)
 
 int board_mmc_getcd(struct mmc *mmc)
 {
 	struct fsl_esdhc_cfg *cfg = (struct fsl_esdhc_cfg *)mmc->priv;
 	int ret = 0;
 
-	switch (cfg->esdhc_base) {
-	case USDHC1_BASE_ADDR:
-		ret = 1;
-		break;
-	case USDHC2_BASE_ADDR:
-#ifdef CONFIG_TARGET_IMX8MQ_DDR3L_ARM2
-		ret = !gpio_get_value(USDHC2_CD_GPIO);
-#else
-		ret = gpio_get_value(USDHC2_CD_GPIO);
-#endif
-		return ret;
+	if (cfg->esdhc_base == USDHC1_BASE_ADDR) {
+		ret = gpio_get_value(USDHC1_CD_GPIO);
 	}
 
-	return 1;
+	return ret;
 }
 
 #define USDHC_PAD_CTRL	(PAD_CTL_DSE6 | PAD_CTL_HYS | PAD_CTL_PUE | \
@@ -83,69 +72,35 @@ static iomux_v3_cfg_t const usdhc1_pads[] = {
 	IMX8MQ_PAD_SD1_DATA1__USDHC1_DATA1 | MUX_PAD_CTRL(USDHC_PAD_CTRL),
 	IMX8MQ_PAD_SD1_DATA2__USDHC1_DATA2 | MUX_PAD_CTRL(USDHC_PAD_CTRL),
 	IMX8MQ_PAD_SD1_DATA3__USDHC1_DATA3 | MUX_PAD_CTRL(USDHC_PAD_CTRL),
-	IMX8MQ_PAD_SD1_DATA4__USDHC1_DATA4 | MUX_PAD_CTRL(USDHC_PAD_CTRL),
-	IMX8MQ_PAD_SD1_DATA5__USDHC1_DATA5 | MUX_PAD_CTRL(USDHC_PAD_CTRL),
-	IMX8MQ_PAD_SD1_DATA6__USDHC1_DATA6 | MUX_PAD_CTRL(USDHC_PAD_CTRL),
-	IMX8MQ_PAD_SD1_DATA7__USDHC1_DATA7 | MUX_PAD_CTRL(USDHC_PAD_CTRL),
+	IMX8MQ_PAD_GPIO1_IO06__USDHC1_CD_B | MUX_PAD_CTRL(USDHC_GPIO_PAD_CTRL),
 	IMX8MQ_PAD_SD1_RESET_B__GPIO2_IO10 | MUX_PAD_CTRL(USDHC_GPIO_PAD_CTRL),
 };
 
-static iomux_v3_cfg_t const usdhc2_pads[] = {
-	IMX8MQ_PAD_SD2_CLK__USDHC2_CLK | MUX_PAD_CTRL(USDHC_PAD_CTRL), /* 0xd6 */
-	IMX8MQ_PAD_SD2_CMD__USDHC2_CMD | MUX_PAD_CTRL(USDHC_PAD_CTRL), /* 0xd6 */
-	IMX8MQ_PAD_SD2_DATA0__USDHC2_DATA0 | MUX_PAD_CTRL(USDHC_PAD_CTRL), /* 0xd6 */
-	IMX8MQ_PAD_SD2_DATA1__USDHC2_DATA1 | MUX_PAD_CTRL(USDHC_PAD_CTRL), /* 0xd6 */
-	IMX8MQ_PAD_SD2_DATA2__USDHC2_DATA2 | MUX_PAD_CTRL(USDHC_PAD_CTRL), /* 0x16 */
-	IMX8MQ_PAD_SD2_DATA3__USDHC2_DATA3 | MUX_PAD_CTRL(USDHC_PAD_CTRL), /* 0xd6 */
-	IMX8MQ_PAD_GPIO1_IO04__USDHC2_VSELECT | MUX_PAD_CTRL(USDHC_PAD_CTRL),
-	IMX8MQ_PAD_SD2_CD_B__GPIO2_IO12 | MUX_PAD_CTRL(USDHC_GPIO_PAD_CTRL),
-	IMX8MQ_PAD_SD2_RESET_B__GPIO2_IO19 | MUX_PAD_CTRL(USDHC_GPIO_PAD_CTRL),
-};
-
-static struct fsl_esdhc_cfg usdhc_cfg[2] = {
-	{USDHC1_BASE_ADDR, 0, 8},
-	{USDHC2_BASE_ADDR, 0, 4},
+static struct fsl_esdhc_cfg usdhc_cfg[] = {
+	{USDHC1_BASE_ADDR, 0, 4},
 };
 
 int board_mmc_init(bd_t *bis)
 {
-	int i, ret;
+	int ret;
 	/*
 	 * According to the board_mmc_init() the following map is done:
 	 * (U-Boot device node)    (Physical Port)
 	 * mmc0                    USDHC1
 	 * mmc1                    USDHC2
 	 */
-	for (i = 0; i < CONFIG_SYS_FSL_USDHC_NUM; i++) {
-		switch (i) {
-		case 0:
-			usdhc_cfg[0].sdhc_clk = mxc_get_clock(USDHC1_CLK_ROOT);
-			imx_iomux_v3_setup_multiple_pads(
-				usdhc1_pads, ARRAY_SIZE(usdhc1_pads));
-			gpio_request(USDHC1_PWR_GPIO, "usdhc1_reset");
-			gpio_direction_output(USDHC1_PWR_GPIO, 0);
-			udelay(500);
-			gpio_direction_output(USDHC1_PWR_GPIO, 1);
-			break;
-		case 1:
-			usdhc_cfg[1].sdhc_clk = mxc_get_clock(USDHC2_CLK_ROOT);
-			imx_iomux_v3_setup_multiple_pads(
-				usdhc2_pads, ARRAY_SIZE(usdhc2_pads));
-			gpio_request(USDHC2_PWR_GPIO, "usdhc2_reset");
-			gpio_direction_output(USDHC2_PWR_GPIO, 0);
-			udelay(500);
-			gpio_direction_output(USDHC2_PWR_GPIO, 1);
-			break;
-		default:
-			printf("Warning: you configured more USDHC controllers"
-				"(%d) than supported by the board\n", i + 1);
-			return -EINVAL;
-		}
 
-		ret = fsl_esdhc_initialize(bis, &usdhc_cfg[i]);
-		if (ret)
-			return ret;
-	}
+	usdhc_cfg[0].sdhc_clk = mxc_get_clock(USDHC1_CLK_ROOT);
+	imx_iomux_v3_setup_multiple_pads(
+		usdhc1_pads, ARRAY_SIZE(usdhc1_pads));
+	gpio_request(USDHC1_PWR_GPIO, "usdhc1_reset");
+	gpio_direction_output(USDHC1_PWR_GPIO, 0);
+	udelay(500);
+	gpio_direction_output(USDHC1_PWR_GPIO, 1);
+
+	ret = fsl_esdhc_initialize(bis, &usdhc_cfg[0]);
+	if (ret)
+		return ret;
 
 	return 0;
 }
@@ -156,37 +111,32 @@ int power_init_board(void)
 {
 	struct pmic *p;
 	int ret;
-	unsigned int reg;
 
-	ret = power_pfuze100_init(I2C_PMIC);
+	ret = power_bd71837_init(I2C_PMIC);
 	if (ret)
-		return -ENODEV;
+		printf("power init failed");
 
-	p = pmic_get("PFUZE100");
-	ret = pmic_probe(p);
-	if (ret)
-		return -ENODEV;
+	p = pmic_get("BD71837");
+	pmic_probe(p);
 
-	pmic_reg_read(p, PFUZE100_DEVICEID, &reg);
-	printf("PMIC:  PFUZE100 ID=0x%02x\n", reg);
 
-	pmic_reg_read(p, PFUZE100_SW1ABVOL, &reg);
-	if ((reg & 0x3f) != 0x1c) {
-		reg &= ~0x3f;
-		reg |= 0x1c;
-		pmic_reg_write(p, PFUZE100_SW1ABVOL, reg);
-	}
+	/* decrease RESET key long push time from the default 10s to 10ms */
+	pmic_reg_write(p, BD71837_PWRONCONFIG1, 0x0);
 
-	pmic_reg_read(p, PFUZE100_SW1CVOL, &reg);
-	if ((reg & 0x3f) != 0x1c) {
-		reg &= ~0x3f;
-		reg |= 0x1c;
-		pmic_reg_write(p, PFUZE100_SW1CVOL, reg);
-	}
+	/* unlock the PMIC regs */
+	pmic_reg_write(p, BD71837_REGLOCK, 0x1);
 
-	ret = pfuze_mode_init(p, APS_PFM);
-	if (ret < 0)
-		return ret;
+	/* increase VDD_SOC to typical value 0.85v before first DRAM access */
+	pmic_reg_write(p, BD71837_BUCK1_VOLT_RUN, 0x0f);
+
+	/* increase VDD_DRAM to 0.975v for 3Ghz DDR */
+	pmic_reg_write(p, BD71837_BUCK5_VOLT, 0x83);
+
+	/* increase NVCC_DRAM_1V2 to 1.2v for DDR4 */
+	pmic_reg_write(p, BD71837_BUCK8_VOLT, 0x28);
+
+	/* lock the PMIC regs */
+	pmic_reg_write(p, BD71837_REGLOCK, 0x11);
 
 	return 0;
 }
