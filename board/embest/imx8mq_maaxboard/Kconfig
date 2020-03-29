@@ -1,4 +1,4 @@
-if TARGET_IMX8MQ_DDR3L_MAAXBOARD || TARGET_IMX8MQ_DDR4_MAAXBOARD
+if TARGET_IMX8MQ_DDR4_MAAXBOARD
 
 config SYS_BOARD
 	default "imx8mq_maaxboard"
@@ -8,5 +8,16 @@ config SYS_VENDOR
 
 config SYS_CONFIG_NAME
 	default "imx8mq_maaxboard"
+
+choice
+	prompt "MaaXBoard DDR4 select"
+
+config MAAXBOARD_DDR4_HYNIX_2GB
+	bool "SK Hynix 2GB DDR4"
+
+config MAAXBOARD_DDR4_HYNIX_4GB
+	bool "SK Hynix 4GB DDR4"
+
+endchoice
 
 endif
