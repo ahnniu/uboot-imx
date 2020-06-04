@@ -56,7 +56,7 @@ int board_mmc_getcd(struct mmc *mmc)
 	int ret = 0;
 
 	if (cfg->esdhc_base == USDHC1_BASE_ADDR) {
-		ret = gpio_get_value(USDHC1_CD_GPIO);
+		ret = !gpio_get_value(USDHC1_CD_GPIO);
 	}
 
 	return ret;

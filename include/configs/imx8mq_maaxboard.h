@@ -202,16 +202,26 @@
 #define CONFIG_ENV_OVERWRITE
 #define CONFIG_ENV_OFFSET               (64 * SZ_64K)
 #define CONFIG_ENV_SIZE			0x1000
-#define CONFIG_SYS_MMC_ENV_DEV		1   /* USDHC2 */
+#define CONFIG_SYS_MMC_ENV_DEV		1   /* USDHC1 */
 #define CONFIG_MMCROOT			"/dev/mmcblk1p2"  /* USDHC2 */
 
 /* Size of malloc() pool */
 #define CONFIG_SYS_MALLOC_LEN		((CONFIG_ENV_SIZE + (2*1024) + (16*1024)) * 1024)
 
 #define CONFIG_SYS_SDRAM_BASE           0x40000000
-#define PHYS_SDRAM                      0x40000000
-#define PHYS_SDRAM_SIZE			0xC0000000 /* 3GB DDR */
+
+
+#ifdef CONFIG_MAAXBOARD_DDR4_HYNIX_4GB
+#define PHYS_SDRAM_SIZE			0x80000000 /* 2GB DDR */
+#define PHYS_SDRAM_2_SIZE		0x80000000 /* 2GB DDR */
+#define CONFIG_NR_DRAM_BANKS		2
+#define PHYS_SDRAM			0x40000000
+#define PHYS_SDRAM_2			0xC0000000
+#else
+#define PHYS_SDRAM_SIZE			0x80000000 /* Default 2GB DDR */
 #define CONFIG_NR_DRAM_BANKS		1
+#define PHYS_SDRAM			0x40000000
+#endif
 
 #define CONFIG_SYS_MEMTEST_START    PHYS_SDRAM
 #define CONFIG_SYS_MEMTEST_END      (CONFIG_SYS_MEMTEST_START + (PHYS_SDRAM_SIZE >> 1))
@@ -237,7 +247,7 @@
 #define CONFIG_FSL_ESDHC
 #define CONFIG_FSL_USDHC
 
-#define CONFIG_SYS_FSL_USDHC_NUM	2
+#define CONFIG_SYS_FSL_USDHC_NUM	1
 #define CONFIG_SYS_FSL_ESDHC_ADDR       0
 
 #define CONFIG_SUPPORT_EMMC_BOOT	/* eMMC specific */
